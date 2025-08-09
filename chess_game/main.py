@@ -4,6 +4,7 @@ import time
 import threading
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict
+import os
 
 import pygame as pg
 import chess
@@ -30,6 +31,7 @@ BLACK_SHADE = (65, 65, 65)
 EDGE_STROKE = (15, 15, 15)
 
 PIECE_SCALE = 0.8
+ASSETS_PIECES_DIR = os.path.join(os.path.dirname(__file__), "assets", "pieces")
 
 @dataclass
 class PlayerMode:
@@ -44,12 +46,37 @@ class BoardRenderer:
         self._build_piece_cache()
 
     def _build_piece_cache(self) -> None:
-        # Cache vector-drawn piece surfaces per color and type
+        # Load image assets if available; fallback to vector-drawn pieces
         for is_white in (True, False):
             for piece_type in [chess.PAWN, chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN, chess.KING]:
-                surf = pg.Surface((SQUARE_SIZE, SQUARE_SIZE), pg.SRCALPHA)
-                self._draw_piece(surf, is_white, piece_type)
+                img_surf = self._load_image_for_piece(is_white, piece_type)
+                if img_surf is None:
+                    surf = pg.Surface((SQUARE_SIZE, SQUARE_SIZE), pg.SRCALPHA)
+                    self._draw_piece(surf, is_white, piece_type)
+                else:
+                    surf = img_surf
                 self.piece_surfaces[(is_white, piece_type)] = surf
+
+    def _load_image_for_piece(self, is_white: bool, piece_type: chess.PieceType) -> Optional[pg.Surface]:
+        letter_by_type = {
+            chess.PAWN: "p",
+            chess.KNIGHT: "n",
+            chess.BISHOP: "b",
+            chess.ROOK: "r",
+            chess.QUEEN: "q",
+            chess.KING: "k",
+        }
+        color_prefix = "w" if is_white else "b"
+        filename = f"{color_prefix}{letter_by_type[piece_type]}.png"
+        path = os.path.join(ASSETS_PIECES_DIR, filename)
+        if not os.path.exists(path):
+            return None
+        try:
+            img = pg.image.load(path).convert_alpha()
+            scaled = pg.transform.smoothscale(img, (SQUARE_SIZE, SQUARE_SIZE))
+            return scaled
+        except Exception:
+            return None
 
     def draw_board(self, board: chess.Board, selected_sq: Optional[chess.Square], legal_targets: set) -> None:
         self._draw_wood_frame()
